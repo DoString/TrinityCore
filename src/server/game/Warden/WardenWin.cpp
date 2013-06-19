@@ -98,7 +98,7 @@ void WardenWin::InitializeModule()
     Request.Size1 = 20;
     Request.Unk1 = 1;
     Request.Unk2 = 0;
-    Request.Type = 1;
+    Request.Type = 2; // mpq_check ; 1 = Sha1 al reves , 2 = Sha1 normal.
     Request.String_library1 = 0;
     Request.Function1[0] = 0x00024F80;                      // 0x00400000 + 0x00024F80 SFileOpenFile
     Request.Function1[1] = 0x000218C0;                      // 0x00400000 + 0x000218C0 SFileGetFileSize
@@ -113,7 +113,7 @@ void WardenWin::InitializeModule()
     Request.String_library2 = 0;
     Request.Function2 = 0x00419D40;                         // 0x00400000 + 0x00419D40 FrameScript::GetText
     Request.Function2_set = 1;
-    Request.CheckSumm2 = BuildChecksum(&Request.Unk2, 8);
+    Request.CheckSumm2 = BuildChecksum(&Request.Unk3, 8);
 
     Request.Command3 = WARDEN_SMSG_MODULE_INITIALIZE;
     Request.Size3 = 8;
@@ -353,7 +353,7 @@ void WardenWin::HandleData(ByteBuffer &buff)
         if (result == 0x00)
         {
             TC_LOG_WARN(LOG_FILTER_WARDEN, "%s failed timing check. Action: %s", _session->GetPlayerInfo().c_str(), Penalty().c_str());
-            return;
+            
         }
 
         uint32 newClientTicks;
@@ -383,15 +383,15 @@ void WardenWin::HandleData(ByteBuffer &buff)
         type = rd->Type;
         switch (type)
         {
-            case MEM_CHECK:
+            case MEM_CHECK: // mem_result + bytes ; debe ser 00 + bytes y bytes deben coincidir con los bytes que aparecen en la columna result para pasar el check.
             {
                 uint8 Mem_Result;
                 buff >> Mem_Result;
 
                 if (Mem_Result != 0)
                 {
-                    TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT MEM_CHECK not 0x00, CheckId %u account Id %u", *itr, _session->GetAccountId());
-                    checkFailed = *itr;
+                    TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT MEM_CHECK imposible obtener datos, CheckId %u account Id %u", *itr, _session->GetAccountId());
+                    //checkFailed = *itr;
                     continue;
                 }
 
@@ -407,13 +407,13 @@ void WardenWin::HandleData(ByteBuffer &buff)
                 TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT MEM_CHECK passed CheckId %u account Id %u", *itr, _session->GetAccountId());
                 break;
             }
-            case PAGE_CHECK_A:
+            case PAGE_CHECK_A: // Todos estos deben dar E9 para pasar el check , pero solo 4A es fallado , no sirve cualquier cosa que no sea E9 para dar por fallado el check.
             case PAGE_CHECK_B:
             case DRIVER_CHECK:
             case MODULE_CHECK:
             {
-                const uint8 byte = 0xE9;
-                if (memcmp(buff.contents() + buff.rpos(), &byte, sizeof(uint8)) != 0)
+                const uint8 byte = 0x4A;
+                if (memcmp(buff.contents() + buff.rpos(), &byte, sizeof(uint8)) == 0)
                 {
                     if (type == PAGE_CHECK_A || type == PAGE_CHECK_B)
                         TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT PAGE_CHECK fail, CheckId %u account Id %u", *itr, _session->GetAccountId());
@@ -435,15 +435,15 @@ void WardenWin::HandleData(ByteBuffer &buff)
                     TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT DRIVER_CHECK passed CheckId %u account Id %u", *itr, _session->GetAccountId());
                 break;
             }
-            case LUA_STR_CHECK:
+            case LUA_STR_CHECK: // Lua_result + LuaLen + LuaString ; debe ser 00 + 00 + nil para pasar el check.
             {
                 uint8 Lua_Result;
                 buff >> Lua_Result;
 
                 if (Lua_Result != 0)
                 {
-                    TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT LUA_STR_CHECK fail, CheckId %u account Id %u", *itr, _session->GetAccountId());
-                    checkFailed = *itr;
+                    TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT LUA_STR_CHECK imposible obtener datos, CheckId %u account Id %u", *itr, _session->GetAccountId());
+                    //checkFailed = *itr;
                     continue;
                 }
 
@@ -455,29 +455,32 @@ void WardenWin::HandleData(ByteBuffer &buff)
                     char *str = new char[luaStrLen + 1];
                     memcpy(str, buff.contents() + buff.rpos(), luaStrLen);
                     str[luaStrLen] = '\0'; // null terminator
-                    TC_LOG_DEBUG(LOG_FILTER_WARDEN, "Lua string: %s", str);
+                    TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT LUA_STR_CHECK fail, CheckId %u account Id %u, Lua string: %s", *itr, _session->GetAccountId(), str);
+                    checkFailed = *itr;     // _sessiion->Kick para solo kick por addOns ; checkFailed = sanción global.
                     delete[] str;
+                    buff.rpos(buff.rpos() + luaStrLen);
+                    continue;
                 }
                 buff.rpos(buff.rpos() + luaStrLen);         // Skip string
                 TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT LUA_STR_CHECK passed, CheckId %u account Id %u", *itr, _session->GetAccountId());
                 break;
             }
-            case MPQ_CHECK:
+            case MPQ_CHECK: // mpq_result + Sha1 ; Debe ser 00 + sha1 y el sha1 debe ser igual al que aparece en la columna result para pasar el check.
             {
                 uint8 Mpq_Result;
                 buff >> Mpq_Result;
 
                 if (Mpq_Result != 0)
                 {
-                    TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT MPQ_CHECK not 0x00 account id %u", _session->GetAccountId());
-                    checkFailed = *itr;
+                    TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT MPQ_CHECK Imposible obtener datos, CheckId %u, account id %u", *itr, _session->GetAccountId());
+                    //checkFailed = *itr;
                     continue;
                 }
 
                 if (memcmp(buff.contents() + buff.rpos(), rs->Result.AsByteArray(0, false), 20) != 0) // SHA1
                 {
                     TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT MPQ_CHECK fail, CheckId %u account Id %u", *itr, _session->GetAccountId());
-                    checkFailed = *itr;
+                    checkFailed = *itr;                      // _session->kick para solo kick por Model edits de mapas.
                     buff.rpos(buff.rpos() + 20);            // 20 bytes SHA1
                     continue;
                 }
@@ -486,7 +489,7 @@ void WardenWin::HandleData(ByteBuffer &buff)
                 TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT MPQ_CHECK passed, CheckId %u account Id %u", *itr, _session->GetAccountId());
                 break;
             }
-            default:                                        // Should never happen
+            default:                                        // Should never happen ; Default = Paquete corrupto , paquete vacio , paquete alterado etc , no deberia pasar pq se fallaria el checksum.
                 break;
         }
     }
