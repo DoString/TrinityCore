@@ -21114,6 +21114,7 @@ void Player::CleanupAfterTaxiFlight()
     Dismount();
     RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE | UNIT_FLAG_TAXI_FLIGHT);
     getHostileRefManager().setOnlineOfflineState(true);
+    RemoveAurasByType(SPELL_AURA_MOUNTED);
 }
 
 void Player::ContinueTaxiFlight()
