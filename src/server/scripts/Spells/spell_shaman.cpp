@@ -836,6 +836,32 @@ class spell_sha_thunderstorm : public SpellScriptLoader
             return new spell_sha_thunderstorm_SpellScript();
         }
 };
+class spell_revive_self : public SpellScriptLoader
+{
+public:
+    spell_revive_self() : SpellScriptLoader("spell_revive_self") {}
+	class spell_revive_self_SpellScript : public SpellScript
+	{
+		PrepareSpellScript(spell_revive_self_SpellScript);
+
+		void HandleDummy(SpellEffIndex /*index*/)
+		{
+			
+			Creature* mob = GetHitCreature();
+					mob->SetFullHealth();
+					mob->SetMaxPower(POWER_MANA, mob->GetMaxPower(POWER_MANA));
+	    }
+        
+		void Register()
+		{
+			OnEffectHitTarget += SpellEffectFn(spell_revive_self_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+		}
+	};
+		SpellScript* GetSpellScript() const
+		{
+			return new spell_revive_self_SpellScript();
+		}
+};
 
 void AddSC_shaman_spell_scripts()
 {
@@ -856,4 +882,5 @@ void AddSC_shaman_spell_scripts()
     new spell_sha_mana_tide_totem();
     new spell_sha_sentry_totem();
     new spell_sha_thunderstorm();
+    new spell_revive_self();
 }
