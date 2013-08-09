@@ -62,6 +62,7 @@ class WardenCheckMgr
 
         std::vector<uint16> MemChecksIdPool;
         std::vector<uint16> OtherChecksIdPool;
+        std::vector<uint16> AddOnsChecksIdPool;
 
         void LoadWardenChecks();
         void LoadWardenOverrides();
