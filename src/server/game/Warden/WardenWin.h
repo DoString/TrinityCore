@@ -88,6 +88,7 @@ class WardenWin : public Warden
         uint32 _serverTicks;
         std::list<uint16> _otherChecksTodo;
         std::list<uint16> _memChecksTodo;
+        std::list<uint16> _AddOnsChecksTodo;
         std::list<uint16> _currentChecks;
 };
 
