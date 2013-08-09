@@ -181,6 +181,9 @@ void WardenWin::RequestData()
     // If all checks were done, fill the todo list again
     if (_memChecksTodo.empty())
         _memChecksTodo.assign(sWardenCheckMgr->MemChecksIdPool.begin(), sWardenCheckMgr->MemChecksIdPool.end());
+    
+    if (_AddOnsChecksTodo.empty())
+    	_AddOnsChecksTodo.assign(sWardenCheckMgr->AddOnsChecksIdPool.begin(), sWardenCheckMgr->AddOnsChecksIdPool.end());
 
     if (_otherChecksTodo.empty())
         _otherChecksTodo.assign(sWardenCheckMgr->OtherChecksIdPool.begin(), sWardenCheckMgr->OtherChecksIdPool.end());
@@ -191,6 +194,8 @@ void WardenWin::RequestData()
     uint8 type;
     WardenCheck* wd;
     _currentChecks.clear();
+    
+    ByteBuffer buff;
 
     // Build check request
     for (uint32 i = 0; i < sWorld->getIntConfig(CONFIG_WARDEN_NUM_MEM_CHECKS); ++i)
@@ -207,7 +212,7 @@ void WardenWin::RequestData()
         _currentChecks.push_back(id);
     }
 
-    ByteBuffer buff;
+    
     buff << uint8(WARDEN_SMSG_CHEAT_CHECKS_REQUEST);
 
     ACE_READ_GUARD(ACE_RW_Mutex, g, sWardenCheckMgr->_checkStoreLock);
@@ -229,8 +234,6 @@ void WardenWin::RequestData()
 
         switch (wd->Type)
         {
-            case MPQ_CHECK:
-            case LUA_STR_CHECK:
             case DRIVER_CHECK:
                 buff << uint8(wd->Str.size());
                 buff.append(wd->Str.c_str(), wd->Str.size());
@@ -239,7 +242,31 @@ void WardenWin::RequestData()
                 break;
         }
     }
+    //addOns Lua checks.
+	for (uint32 i = 0; i < 3; ++i)  //3 checks de addOns por ciclo.
+	{
+		if (_AddOnsChecksTodo.empty())
+			break;
 
+		id = _AddOnsChecksTodo.back();
+        _AddOnsChecksTodo.pop_back();
+
+        _currentChecks.push_back(id);
+
+        wd = sWardenCheckMgr->GetWardenDataById(id);
+
+    switch (wd->Type)
+    {
+           case LUA_STR_CHECK:
+           case MPQ_CHECK:
+                buff << uint8(wd->Str.size());
+                buff.append(wd->Str.c_str(), wd->Str.size());   
+				
+                break;
+		 default:
+                break;
+        }
+	}
     uint8 xorByte = _inputKey[0];
 
     // Add TIMING_CHECK
@@ -352,7 +379,7 @@ void WardenWin::HandleData(ByteBuffer &buff)
         /// @todo test it.
         if (result == 0x00)
         {
-            TC_LOG_WARN(LOG_FILTER_WARDEN, "%s failed timing check. Action: %s", _session->GetPlayerInfo().c_str(), Penalty().c_str());
+            TC_LOG_WARN(LOG_FILTER_WARDEN, "%s Tenia Speedhack activo. Action: %s", _session->GetPlayerInfo().c_str(), Penalty().c_str());
             
         }
 
@@ -456,7 +483,7 @@ void WardenWin::HandleData(ByteBuffer &buff)
                     memcpy(str, buff.contents() + buff.rpos(), luaStrLen);
                     str[luaStrLen] = '\0'; // null terminator
                     TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT LUA_STR_CHECK fail, CheckId %u account Id %u, Lua string: %s", *itr, _session->GetAccountId(), str);
-                    checkFailed = *itr;     // _sessiion->Kick para solo kick por addOns ; checkFailed = sanción global.
+                    checkFailed = *itr;     
                     delete[] str;
                     buff.rpos(buff.rpos() + luaStrLen);
                     continue;
@@ -480,7 +507,7 @@ void WardenWin::HandleData(ByteBuffer &buff)
                 if (memcmp(buff.contents() + buff.rpos(), rs->Result.AsByteArray(0, false), 20) != 0) // SHA1
                 {
                     TC_LOG_DEBUG(LOG_FILTER_WARDEN, "RESULT MPQ_CHECK fail, CheckId %u account Id %u", *itr, _session->GetAccountId());
-                    checkFailed = *itr;                      // _session->kick para solo kick por Model edits de mapas.
+                    checkFailed = *itr;                      
                     buff.rpos(buff.rpos() + 20);            // 20 bytes SHA1
                     continue;
                 }
