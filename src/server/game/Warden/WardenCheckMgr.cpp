@@ -102,9 +102,13 @@ void WardenCheckMgr::LoadWardenChecks()
 
         if (checkType == MEM_CHECK || checkType == MODULE_CHECK)
             MemChecksIdPool.push_back(id);
-        else
+    	
+        if (checkType == LUA_STR_CHECK || checkType == MPQ_CHECK)
+            AddOnsChecksIdPool.push_back(id);
+		
+        if (checkType == PAGE_CHECK_A || checkType == PAGE_CHECK_B ||checkType == DRIVER_CHECK ||checkType == PROC_CHECK)
             OtherChecksIdPool.push_back(id);
-
+            
         if (checkType == MEM_CHECK || checkType == PAGE_CHECK_A || checkType == PAGE_CHECK_B || checkType == PROC_CHECK)
         {
             wardenCheck->Address = address;
